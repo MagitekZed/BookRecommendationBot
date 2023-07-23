@@ -15,8 +15,10 @@ def register_handlers(bot):
             process_publicationtime_step(call.message, call.data)
         elif call.data in ['fiction', 'non-fiction']:
             process_type_step(call.message, call.data)
-        elif call.data in ['short', 'long']:
+        elif call.data in ['short', 'long', 'medium']:
             process_length_step(call.message, call.data)
+
+####################################################
 
     # This handler is called when the user sends the /start command
     @bot.message_handler(commands=['start'])
@@ -58,16 +60,33 @@ def register_handlers(bot):
         if message.chat.id in user_data:
             # Retrieve the user's preferences
             preferences = user_data[message.chat.id]
+            print(f"User preferences: {preferences}")  # Debugging print statement
             # Generate a message to send to the GPT-4 model based on the user's preferences
             message_content = f"I'm looking for a {preferences['genre']} book. I prefer {preferences['format']} books and I'm interested in {preferences['time']} books. I like {preferences['type']} books. Some of my favorite authors are {preferences['authors']}, and I recently enjoyed reading {preferences['books']}. I prefer {preferences['length']} books."
+            
+            # Check if detailed preferences are set and include them in the message if they are
+            if 'mood' in preferences:
+                message_content += f" I'm currently in the mood for: {preferences['mood']}."
+            if 'theme' in preferences:
+                message_content += f" I'm interested in books about: {preferences['theme']}."
+            if 'setting' in preferences:
+                message_content += f" I'd like a book set in: {preferences['setting']}."
+            if 'character' in preferences:
+                message_content += f" I enjoy books with: {preferences['character']}."
+    
+            print(f"Message content: {message_content}")  # Debugging print statement
             # Generate a response using the GPT-4 model
             response = generate_response(message_content, preferences)
+            print(f"Generated response: {response}")  # Debugging print statement
             # Send the response back to the user
             bot.send_message(message.chat.id, response)
         else:
             # If the user hasn't set any preferences yet, send a message letting them know
             bot.send_message(message.chat.id, 'You haven\'t set any reading preferences yet. You can do so by typing /preferences.')
+    
 
+####################################################
+    
     # This function is called after the user responds to the genre question
     def process_genre_step(message):
         # Store the user's favorite genre
@@ -95,7 +114,7 @@ def register_handlers(bot):
 
     def process_publicationtime_step(message, time):
         # Store the user's time preference
-        user_data[message.chat.id]['Time'] = time
+        user_data[message.chat.id]['time'] = time
         # Create a new InlineKeyboardMarkup object
         keyboard = types.InlineKeyboardMarkup()
         # Add "Fiction", "Non-Fiction" buttons to the keyboard
@@ -127,15 +146,58 @@ def register_handlers(bot):
         keyboard = types.InlineKeyboardMarkup()
         # Add "Short", "Long" buttons to the keyboard
         keyboard.add(types.InlineKeyboardButton('Short', callback_data='short'),
-                     types.InlineKeyboardButton('Long', callback_data='long'))
+                     types.InlineKeyboardButton('Long', callback_data='long'),
+                     types.InlineKeyboardButton('Long', callback_data='medium'))
         # Ask the user if they prefer short reads or long, in-depth books, and display the keyboard
-        bot.send_message(message.chat.id, 'Do you prefer short reads or long, in-depth books?', reply_markup=keyboard)
+        bot.send_message(message.chat.id, 'Do you prefer short reads, long, in-depth books, or somoewhere in between?', reply_markup=keyboard)
 
     def process_length_step(message, length):
         # Store the user's length preference
         user_data[message.chat.id]['length'] = length
         # Send a confirmation message
         bot.send_message(message.chat.id, 'Great! I\'ve saved your preferences.')
+
+####################################################
+
+    # This handler is called when the user sends the /set_detailed_preferences command
+    @bot.message_handler(commands=['set_detailed_preferences'])
+    def set_detailed_preferences(message):
+        # Ask the user about their current reading mood
+        msg = bot.send_message(message.chat.id, 'What is your current reading mood? For example, "I\'m in the mood for a thrilling adventure" or "I want something light and humorous".')
+        # Register process_mood_step as the next step
+        bot.register_next_step_handler(msg, process_mood_step)
+
+    def process_mood_step(message):
+        # Store the user's reading mood
+        user_data[message.chat.id]['mood'] = message.text
+        # Ask the user about specific themes or topics they're interested in
+        msg = bot.send_message(message.chat.id, 'Are there specific themes or topics you are interested in? For example, "I want a book about space exploration" or "I\'m interested in historical fiction set in the Victorian era".')
+        # Register process_theme_step as the next step
+        bot.register_next_step_handler(msg, process_theme_step)
+
+    def process_theme_step(message):
+        # Store the user's theme preference
+        user_data[message.chat.id]['theme'] = message.text
+        # Ask the user about specific settings or time periods they're interested in
+        msg = bot.send_message(message.chat.id, 'Are there specific settings or time periods you are interested in? For example, "I want a book set in the future" or "I want a book set in the 1920s".')
+        # Register process_setting_step as the next step
+        bot.register_next_step_handler(msg, process_setting_step)
+
+    def process_setting_step(message):
+        # Store the user's setting preference
+        user_data[message.chat.id]['setting'] = message.text
+        # Ask the user about specific types of characters they're interested in
+        msg = bot.send_message(message.chat.id, 'Are there specific types of characters you are interested in? For example, "I want a book with a strong female lead" or "I want a book with a detective as the main character".')
+        # Register process_character_step as the next step
+        bot.register_next_step_handler(msg, process_character_step)
+
+    def process_character_step(message):
+        # Store the user's character preference
+        user_data[message.chat.id]['character'] = message.text
+        # Send a confirmation message
+        bot.send_message(message.chat.id, 'Great! I\'ve saved your detailed preferences.')
+
+################################################  
 
     # This handler is called for any text message that is not a command
     @bot.message_handler(func=lambda message: True)
