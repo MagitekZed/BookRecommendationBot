@@ -9,22 +9,32 @@ def register_handlers(bot):
     @bot.callback_query_handler(func=lambda call: True)
     def callback_query(call):
         # Check the callback_data and call the appropriate function
-        if call.data in ['stand-alone', 'series', 'no preference']:
+        if call.data in ['stand-alone', 'series', 'no series preference']:
             process_format_step(call.message, call.data)
-        elif call.data in ['new releases', 'classics', 'no preference']:
+        elif call.data in ['new releases', 'classics', 'no date preference']:
             process_publicationtime_step(call.message, call.data)
         elif call.data in ['fiction', 'non-fiction']:
             process_type_step(call.message, call.data)
         elif call.data in ['short', 'long', 'medium']:
             process_length_step(call.message, call.data)
+        elif call.data == 'add_detailed_preferences':
+            set_detailed_preferences(call.message)
+        elif call.data == 'generate_recommendations':
+            get_recommendation(call.message)
+        elif call.data == 'do_not_generate':
+            bot.send_message(call.message.chat.id, 'Okay, you can generate recommendations later by typing /get_recommendation.')
+    
+    
 
 ####################################################
 
     # This handler is called when the user sends the /start command
     @bot.message_handler(commands=['start'])
     def start(message):
-        # Send a welcome message
-        bot.send_message(message.chat.id, 'Welcome to the Book Recommendation Bot! You can set your reading preferences by typing /preferences.')
+        # Create a ReplyKeyboardRemove object
+        markup = types.ReplyKeyboardRemove(selective=False)
+        # Send a welcome message and remove the keyboard
+        bot.send_message(message.chat.id, 'Welcome to the Book Recommendation Bot! You can set your reading preferences by typing /preferences.', reply_markup=markup)
 
     # This handler is called when the user sends the /preferences command
     @bot.message_handler(commands=['preferences'])
@@ -45,13 +55,15 @@ def register_handlers(bot):
             preferences = user_data[message.chat.id]
             # Create a list of strings representing the user's preferences
             preferences_list = [f'{key.capitalize()}: {value}' for key, value in preferences.items()]
+            
             # Join the list into a single string with line breaks between each preference
             preferences_str = '\n'.join(preferences_list)
             # Send the user's preferences back to them
             bot.send_message(message.chat.id, 'Here are your current reading preferences:\n' + preferences_str)
         else:
             # If the user hasn't set any preferences yet, send a message letting them know
-            bot.send_message(message.chat.id, 'You haven\'t set any reading preferences yet. You can do so by typing /preferences.')
+            bot.send_message(message.chat.id, "You haven't set any reading preferences yet. You can do so by typing /preferences.")
+    
 
     # This handler is called when the user sends the /get_recommendation command
     @bot.message_handler(commands=['get_recommendation'])
@@ -96,7 +108,7 @@ def register_handlers(bot):
         # Add "Stand-Alone", "Series", and "No Preference" buttons to the keyboard
         keyboard.add(types.InlineKeyboardButton('Stand-Alone', callback_data='stand-alone'),
                      types.InlineKeyboardButton('Series', callback_data='series'),
-                     types.InlineKeyboardButton('No Preference', callback_data='no preference'))
+                     types.InlineKeyboardButton('No Preference', callback_data='no series preference'))
         # Ask the user if they prefer stand-alone books or series, and display the keyboard
         bot.send_message(message.chat.id, 'Do you prefer stand-alone books or series?', reply_markup=keyboard)
 
@@ -108,7 +120,7 @@ def register_handlers(bot):
         # Add "New Releases", "Classics", and "No Preference" buttons to the keyboard
         keyboard.add(types.InlineKeyboardButton('New Releases', callback_data='new releases'),
                      types.InlineKeyboardButton('Classics', callback_data='classics'),
-                     types.InlineKeyboardButton('No Preference', callback_data='no preference'))
+                     types.InlineKeyboardButton('No Preference', callback_data='no date preference'))
         # Ask the user if they prefer new releases or classics, and display the keyboard
         bot.send_message(message.chat.id, 'Do you prefer new releases or classics?', reply_markup=keyboard)
 
@@ -147,15 +159,21 @@ def register_handlers(bot):
         # Add "Short", "Long" buttons to the keyboard
         keyboard.add(types.InlineKeyboardButton('Short', callback_data='short'),
                      types.InlineKeyboardButton('Long', callback_data='long'),
-                     types.InlineKeyboardButton('Long', callback_data='medium'))
+                     types.InlineKeyboardButton('In-Between', callback_data='medium'))
         # Ask the user if they prefer short reads or long, in-depth books, and display the keyboard
-        bot.send_message(message.chat.id, 'Do you prefer short reads, long, in-depth books, or somoewhere in between?', reply_markup=keyboard)
+        bot.send_message(message.chat.id, 'Do you prefer short reads, long, in-depth books, or somewhere in between?', reply_markup=keyboard)
 
     def process_length_step(message, length):
         # Store the user's length preference
         user_data[message.chat.id]['length'] = length
-        # Send a confirmation message
-        bot.send_message(message.chat.id, 'Great! I\'ve saved your preferences.')
+        # Create a new InlineKeyboardMarkup object
+        keyboard = types.InlineKeyboardMarkup()
+        # Add "Add Detailed Preferences", "Generate Recommendations" buttons to the keyboard
+        keyboard.add(types.InlineKeyboardButton('Add Detailed Preferences', callback_data='add_detailed_preferences'),
+                     types.InlineKeyboardButton('Generate Recommendations', callback_data='generate_recommendations'))
+        # Ask the user if they want to add detailed preferences or generate recommendations, and display the keyboard
+        bot.send_message(message.chat.id, 'Would you like to add detailed preferences or generate recommendations?', reply_markup=keyboard)
+    
 
 ####################################################
 
@@ -194,10 +212,32 @@ def register_handlers(bot):
     def process_character_step(message):
         # Store the user's character preference
         user_data[message.chat.id]['character'] = message.text
-        # Send a confirmation message
-        bot.send_message(message.chat.id, 'Great! I\'ve saved your detailed preferences.')
+        # Create a new InlineKeyboardMarkup object
+        keyboard = types.InlineKeyboardMarkup()
+        # Add "Yes", "No" buttons to the keyboard
+        keyboard.add(types.InlineKeyboardButton('Yes', callback_data='generate_recommendations'),
+                     types.InlineKeyboardButton('No', callback_data='do_not_generate'))
+        # Ask the user if they want to generate recommendations now, and display the keyboard
+        bot.send_message(message.chat.id, 'Would you like to generate recommendations now?', reply_markup=keyboard)
+    
 
 ################################################  
+
+    # This handler is called when the user sends the /help command
+    @bot.message_handler(commands=['help'])
+    def help(message):
+        help_text = """
+        Here are the commands you can use:
+        - /start: Starts the bot and sends a welcome message.
+        - /preferences: Asks you for your reading preferences and stores them.
+        - /set_detailed_preferences: Asks you for more detailed reading preferences and stores them.
+        - /show_preferences: Shows your current reading preferences.
+        - /get_recommendation: Generates a book recommendation based on your preferences.
+        - /help: Displays this message.
+        """
+        bot.send_message(message.chat.id, help_text)
+
+################################################
 
     # This handler is called for any text message that is not a command
     @bot.message_handler(func=lambda message: True)
